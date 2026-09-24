@@ -394,7 +394,9 @@ class ProbeModule : XposedModule() {
         runCatching {
             val im = Class.forName("dalvik.system.InMemoryDexClassLoader")
             val ctors = im.declaredConstructors
-            installAll("imdex_ctor", ctors) { chain ->
+            // declaredConstructors 是 Array<Constructor<*>>，installAll 收 Collection<Executable>，
+            // 这里必须显式 toList() 走一次型变，否则 Kotlin 报 Argument type mismatch。
+            installAll("imdex_ctor", ctors.toList()) { chain ->
                 emit("[dex] InMemoryDexClassLoader.ctor this=${chain.thisObject?.javaClass?.name}")
                 emit("[dex]   args=${describeArgs(chain)}")
                 emit("[dex]   parent=${fieldOf(chain.thisObject, "parent")}")
@@ -411,7 +413,7 @@ class ProbeModule : XposedModule() {
         runCatching {
             val p = Class.forName("dalvik.system.PathClassLoader")
             val ctors = p.declaredConstructors
-            installAll("pathcl_ctor", ctors) { chain ->
+            installAll("pathcl_ctor", ctors.toList()) { chain ->
                 emit("[dex] PathClassLoader.ctor args=${describeArgs(chain)}")
                 chain.proceed()
             }
