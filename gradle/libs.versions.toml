@@ -9,4 +9,5 @@ libxposed-service = { module = "io.github.libxposed:service", version.ref = "lib
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# 注意：不声明 org.jetbrains.kotlin.android。AGP 9.0 起内置 Kotlin 支持，
+# 再应用该插件会在 apply 阶段直接失败。
