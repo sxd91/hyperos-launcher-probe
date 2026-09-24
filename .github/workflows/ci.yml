@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**/*.md'
+      - '.editorconfig'
+      - '.gitignore'
+      - '.idea/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**/*.md'
+      - '.editorconfig'
+      - '.gitignore'
+      - '.idea/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (unsigned)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.7.0
+
+      # 仓库里不放 gradle-wrapper.jar（二进制不入库），CI 现场生成 wrapper。
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 9.7.0 --distribution-type bin
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Lint
+        run: ./gradlew lint --no-daemon
+
+      - name: Build release (unsigned)
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Collect APK + inspect module descriptor
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for apk in app/build/outputs/apk/release/*.apk; do
+            test -f "$apk"
+            echo "::group::$apk"
+            unzip -Z1 "$apk" | grep -E 'META-INF/xposed/|assets/xposed_init|classes.*dex' || true
+            echo "::endgroup::"
+            cp -v "$apk" dist/
+          done
+          ls -1 dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperos-launcher-probe-unsigned
+          path: dist/*.apk
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: warn
